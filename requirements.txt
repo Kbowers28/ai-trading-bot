@@ -1,0 +1,5 @@
+flask
+ib_insync
+requests
+pytz
+python-dotenv
