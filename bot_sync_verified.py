@@ -13,9 +13,7 @@ from dotenv import load_dotenv
 print("🚀 Running FULLY SYNC CLEAN VERSION")
 
 # Load environment
-from pathlib import Path
-env_path = Path('/home/ubuntu/Desktop/.env')
-load_dotenv(dotenv_path=env_path)
+load_dotenv
 
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
