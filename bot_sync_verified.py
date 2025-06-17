@@ -6,9 +6,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-ib = IB()
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 
 SECRET_TOKEN = os.getenv("SECRET_TOKEN")
 ACCOUNT_SIZE = float(os.getenv("ACCOUNT_SIZE", "1000"))
@@ -38,31 +35,11 @@ def webhook():
 
         print(f"✅ Token matched – processing trade: {data}")
 
-        ib.disconnect()
-        ib.connect("127.0.0.1", 4002, clientId=22, timeout=10)
+        # 🔧 Fix: Create a fresh event loop in Flask thread
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        loop = asyncio.get_event_loop()
 
-        if not ib.isConnected():
-            return jsonify({"error": "IBKR not connected"}), 500
-
-        contract = Stock(symbol, "SMART", "USD")
-        ib.qualifyContracts(contract)
-
-        bracket = ib.bracketOrder(
-            action=side,
-            quantity=qty,
-            limitPrice=entry,
-            takeProfitPrice=tp,
-            stopLossPrice=stop
-        )
-
-        # Required to allow fills after hours
-        for o in bracket:
-            o.outsideRth = True
-
-        for order in bracket:
-            ib.placeOrder(contract, order)
-
-        print(f"✅ Order logged and sent for {symbol}")
+        result = loop.run_until_complete(place_order(symbol, side, entry, stop, tp, qty))
         return jsonify({"status": "success", "message": "Order sent"}), 200
 
     except Exception as e:
@@ -70,5 +47,32 @@ def webhook():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+async def place_order(symbol, side, entry, stop, tp, qty):
+    ib = IB()
+    await ib.connectAsync("127.0.0.1", 4002, clientId=22, timeout=10)
+
+    if not ib.isConnected():
+        raise Exception("IBKR not connected")
+
+    contract = Stock(symbol, "SMART", "USD")
+    await ib.qualifyContractsAsync(contract)
+
+    bracket = ib.bracketOrder(
+        action=side,
+        quantity=qty,
+        limitPrice=entry,
+        takeProfitPrice=tp,
+        stopLossPrice=stop
+    )
+
+    for o in bracket:
+        o.outsideRth = True
+
+    for order in bracket:
+        ib.placeOrder(contract, order)
+
+    print(f"✅ Order sent: {symbol} {side} qty={qty} @ {entry}")
+    return True
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
